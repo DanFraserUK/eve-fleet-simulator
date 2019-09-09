@@ -90,6 +90,7 @@ class Weapon {
   dps: number;
   autonomousMovement: boolean;
   bonusMulti: number = 0;
+  capacitorNeed: ?number;
   getDamageDelay(distance: number): number {
     if (this.type === 'Missile') {
       return 1000 * (distance / this.stats.travelVelocity);
@@ -104,6 +105,9 @@ class Weapon {
     this.baseOptimal = wep.optimal;
     this.dps = wep.dps;
     this.autonomousMovement = false;
+    if (wep.capUse) {
+      this.capacitorNeed = wep.capUse * (this.reload / 1000);
+    }
     if (this.type === 'Turret') {
       this.stats = new TurretStats(wep);
     } else if (this.type === 'Missile') {
@@ -134,6 +138,7 @@ class Weapon {
       wep.maxVelocity = 7000;
       this.type = 'Missile';
       this.reload = wep.rof;
+      this.dps = (wep.volley / wep.rof) * 1000;
       this.stats = new MissileStats(wep);
       this.autonomousMovement = true;
     } else {

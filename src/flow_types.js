@@ -1,7 +1,8 @@
 // @flow
 import { Dropdown } from 'semantic-ui-react';
+import type { Element } from 'react';
 // This is passed through rather than defined here to avoid importing the ShipData class
-import type { SideShipInfo } from './index';
+import type { SideShipInfo, IconlessSideShipInfo } from './index';
 
 type Hp = {armor: number, hull: number, shield: number};
 type SingleResonance = {em: number, therm: number, kin: number, exp: number};
@@ -42,6 +43,8 @@ class WeaponData {
   tracking: number;
   damageMultiplierBonusPerCycle: number;
   damageMultiplierBonusMax: number;
+  numCharges: number;
+  reloadTime: number;
 }
 
 type ProjectionTypeString =
@@ -61,7 +64,13 @@ type ProjectionTypeString =
   'Burst Jammer' |
   'Micro Jump Drive';
 
+type RepairTypeString =
+  'Shield Booster' |
+  'Armor Repairer' |
+  'Capacitor Booster';
+
 type ModuleQualityValue = 1 | 2 | 3 | 4;
+type AmmoSwapValue = 'None' | 'Cargo' | 'All';
 type VectorMaxLenThree = [number] | [number, number] | [number, number, number];
 
 /**
@@ -72,15 +81,29 @@ type SyntheticInputEvent = SyntheticEvent<HTMLInputElement>;
 type SyntheticButtonEvent = SyntheticEvent<HTMLButtonElement>;
 type SyntheticDropdownEvent = SyntheticEvent<Dropdown>;
 type GenericSyntheticTransitionEvent = SyntheticTransitionEvent<HTMLElement>;
+type ElementDiv = Element<'div'>;
 
-type SimulationState = 'setup' | 'running' | 'finished';
+type SimulationState = 'setup' | 'running' | 'finished' | 'paused';
 
 type ButtonColors = [boolean, string, string, string, string, string];
+
+type FleetData = { sideOne: IconlessSideShipInfo[], sideTwo: IconlessSideShipInfo[] };
+type FleetSet = { name: string, fleets: FleetData }
+
+type AmmoData = [string, number, number, number, number, number];
+
+type Repair = {
+  type: RepairTypeString,
+  cycleStarted: boolean,
+  [string]: number
+};
 
 export type {
   Hp, SingleResonance, Resonance, WeaponData, WeaponType,
   WeaponAbility, ShipSize, ModuleQualityValue, VectorMaxLenThree,
   SyntheticInputEvent, SyntheticButtonEvent, SyntheticDropdownEvent,
   SimulationState, GenericSyntheticTransitionEvent, ButtonColors,
-  Subsystem, SubsystemType, SideShipInfo, ProjectionTypeString,
+  Subsystem, SubsystemType, SideShipInfo, IconlessSideShipInfo,
+  ProjectionTypeString, FleetData, FleetSet, ElementDiv,
+  AmmoData, AmmoSwapValue, RepairTypeString, Repair,
 };

@@ -24,8 +24,8 @@ import { GetMaxEHP } from './base_derived_stats';
 import type { SidebarShipNode } from './react_components/sidebar_ship_display';
 import { UIRefresh } from './index';
 import type {
-  ShipSize, ModuleQualityValue,
-  SyntheticButtonEvent,
+  ShipSize, ModuleQualityValue, AmmoSwapValue,
+  SyntheticButtonEvent, ElementDiv,
 } from './flow_types';
 
 class ShipBaseDataType {
@@ -104,6 +104,14 @@ function ModQualEnum(str: ?string | ?number) {
   return null;
 }
 
+function AmmoSwapEnum(str: ?string) {
+  const s = String(str);
+  if (s === 'None' || s === 'Cargo' || s === 'All') {
+    return s;
+  }
+  return null;
+}
+
 class ShipDataDisplayManager {
   static isDisplayModeFit: boolean = true;
   static shipTypeDataTypes = [
@@ -129,8 +137,10 @@ class ShipDataDisplayManager {
   static moduleQuality: ModuleQualityValue = ModQualEnum(localStorage.getItem('moduleQuality')) || 1;
   static activeTank: boolean = !(localStorage.getItem('activeTank') === 'false');
   static dronesEnabled: boolean = !(localStorage.getItem('dronesEnabled') === 'false');
+  static ammoSwaps: AmmoSwapValue = AmmoSwapEnum(localStorage.getItem('ammoSwaps')) || 'All';
   static prevModuleQuality: ModuleQualityValue;
   static prevActiveTank: boolean;
+  static forceSidebarUpdate: boolean = false;
 
   static dpsBarMaxValues: [ShipSize, number][] = [
     ['Frigate', 400], ['Destroyer', 600], ['Cruiser', 800], ['Battlecruiser', 1000],
@@ -277,7 +287,7 @@ class ShipDataDisplayManager {
     return ele;
   }
 
-  static ShipTypeBarVisuals(shipData: ShipData) {
+  static ShipTypeBarVisuals(shipData: ShipData): ElementDiv[] {
     return this.shipTypeDataTypes.filter(d => d.isBar && d.visable).map(t => this.BasicVisualBar({
       label: t.label, val: t.getter(shipData), max: t.max, color: t.color, icon: t.icon,
     }));
@@ -292,19 +302,19 @@ class ShipDataDisplayManager {
     );
   }
 
-  static ShipTypeSimpleStatVisuals(shipData: ShipData) {
+  static ShipTypeSimpleStatVisuals(shipData: ShipData): ElementDiv[] {
     return this.shipTypeDataTypes.filter(d => d.isIcon && d.visable).map(t => this.SimpleStatData({
       value: t.getter(shipData), icon: t.icon, text: t.text, name: t.name,
     }));
   }
 
-  static ShipFitBarVisuals(shipData: ShipData) {
+  static ShipFitBarVisuals(shipData: ShipData): ElementDiv[] {
     return this.shipFitDataTypes.filter(d => d.isBar && d.visable).map(t => this.BasicVisualBar({
       label: t.label, val: t.getter(shipData), max: t.max, color: t.color, icon: t.icon,
     }));
   }
 
-  static ShipFitSimpleStatVisuals(shipData: ShipData) {
+  static ShipFitSimpleStatVisuals(shipData: ShipData): ElementDiv[] {
     return this.shipFitDataTypes.filter(d => d.isIcon && d.visable).map(t => this.SimpleStatData({
       value: t.getter(shipData), icon: t.icon, text: t.text, name: t.name,
     }));

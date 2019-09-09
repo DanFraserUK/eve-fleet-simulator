@@ -12,7 +12,7 @@ import { shipJSON } from './../shipJSON';
 import { shipBaseJSON } from './../base_derived_stats';
 import ShipDataDisplayManager from './../ship_data_display_manager';
 
-// uncomment line to include all ship render icons in webpack (roughly 2.5MB for W35).
+// Uncomment line to include all ship render icons in webpack (roughly 2.5MB for W35).
 import renderIconsW35Imp from '../eve_icons/renders/renderIconsW35';
 
 let renderIconsW35: ?{[string]: string};
@@ -33,6 +33,7 @@ try {
   localStorage.setItem('efsLocalShipData', JSON.stringify(localFits));
 }
 const ships: ShipData[] = localFits.length > 0 ? [...defaultFits, ...localFits] : defaultFits;
+ShipData.fixDupeNames(ships);
 const baseShips: ShipData[] = shipBaseJSON;
 baseShips.forEach(s => ShipData.processing(s));
 const ShipSizes = ['Frigate', 'Destroyer', 'Cruiser', 'Battlecruiser', 'Battleship', 'Capital', 'Industrial', 'Misc'];
@@ -384,8 +385,9 @@ function checkboxClickEvent(
   UIRefresh();
 }
 
-type headType = {style: Node, node: SidebarShipNode} => React.Node;
-const headerFunction: headType = ({ style, node }: {style: Node, node: SidebarShipNode}) => {
+type headArgs = {style: { title: {string: string} }, node: SidebarShipNode};
+type headType = headArgs => React.Node;
+const headerFunction: headType = ({ style, node }: headArgs) => {
   if (node.invisible) {
     return <div />;
   }
@@ -484,10 +486,25 @@ class ShipTree extends React.Component<Props, State> {
       [data] = dataConst;
       this.setState(() => ({ cursor: null, isfit: ShipDataDisplayManager.isDisplayModeFit }));
     };
+    this.forceUpdate = () => {
+      // Reload current data and reset cache.
+      const currentData = getHullSizeData();
+      const prevData = null;
+      while (dataConst.length > 0) {
+        dataConst.pop();
+      }
+      dataConst.push(currentData, prevData, { isFitInitalValue: sddm.isDisplayModeFit });
+      [data] = dataConst;
+      this.setState(() => ({ cursor: null, isfit: ShipDataDisplayManager.isDisplayModeFit }));
+    };
   }
   componentDidUpdate() {
-    if (this.state.isfit !== ShipDataDisplayManager.isDisplayModeFit) {
+    const sddm = ShipDataDisplayManager;
+    if (this.state.isfit !== sddm.isDisplayModeFit) {
       this.dataRefresh();
+    } else if (sddm.forceSidebarUpdate) {
+      sddm.forceSidebarUpdate = false;
+      this.forceUpdate();
     }
   }
   onToggle = (node: SidebarShipNode, toggled: boolean) => {
@@ -497,6 +514,7 @@ class ShipTree extends React.Component<Props, State> {
     this.setState({ cursor: node });
   };
   dataRefresh;
+  forceUpdate;
   render() {
     return (
       <Treebeard

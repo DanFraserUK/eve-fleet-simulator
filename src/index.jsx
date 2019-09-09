@@ -1,5 +1,6 @@
 // @flow
 /* global */
+import '@babel/polyfill';
 import React from 'react';
 import ReactDOM from 'react-dom';
 
@@ -11,7 +12,7 @@ import pageIcon from './eve_icons/page_icon.ico';
 
 import FleetSimAndShips from './react_components/fleet_sim_and_ships';
 import TopNavBar from './react_components/top_nav_bar';
-import AddOrRemoveFits from './react_components/add_or_remove_fits';
+import { AddOrRemoveFits } from './react_components/add_or_remove_fits';
 import AboutPage from './react_components/about_page';
 
 import type { ButtonColors } from './flow_types';
@@ -47,6 +48,7 @@ if (root.clientWidth < 1920 && root.clientWidth > 1200) {
   }
 }
 type SideShipInfo = { ship: ShipData, n: number, iconColor: ?string }
+type IconlessSideShipInfo = { ship: ShipData, n: number }
 const sideOneShips: SideShipInfo[] = [];
 const sideTwoShips: SideShipInfo[] = [];
 
@@ -64,17 +66,24 @@ class FullUI extends React.Component<{ },
     super(props);
     this.GetButtonColors = () => {
       const currentStyle: CSSStyleDeclaration = getComputedStyle(documentElement);
-      const buttonColorOne = currentStyle.getPropertyValue('--semantic-button-color-one').trim();
-      const buttonColorTwo = currentStyle.getPropertyValue('--semantic-button-color-two').trim();
-      const buttonColorThree = currentStyle.getPropertyValue('--semantic-button-color-three').trim();
-      const buttonColorFour = currentStyle.getPropertyValue('--semantic-button-color-four').trim();
-      const buttonColorFiveNoGroups = currentStyle
-        .getPropertyValue('--semantic-button-color-five-no-button-groups').trim();
-      const invertButtonsStr = currentStyle.getPropertyValue('--semantic-invert-buttons').trim();
-      const invertButtons = invertButtonsStr === 'true';
+      // Return the dark theme values if the browser lacks css variables or they are missing.'
+      if (currentStyle.getPropertyValue('--semantic-button-color-one')) {
+        const buttonColorOne = currentStyle.getPropertyValue('--semantic-button-color-one').trim();
+        const buttonColorTwo = currentStyle.getPropertyValue('--semantic-button-color-two').trim();
+        const buttonColorThree = currentStyle.getPropertyValue('--semantic-button-color-three').trim();
+        const buttonColorFour = currentStyle.getPropertyValue('--semantic-button-color-four').trim();
+        const buttonColorFiveNoGroups = currentStyle
+          .getPropertyValue('--semantic-button-color-five-no-button-groups').trim();
+        const invertButtonsStr = currentStyle.getPropertyValue('--semantic-invert-buttons').trim();
+        const invertButtons = invertButtonsStr === 'true';
+        return [
+          invertButtons, buttonColorOne, buttonColorTwo,
+          buttonColorThree, buttonColorFour, buttonColorFiveNoGroups,
+        ];
+      }
       return [
-        invertButtons, buttonColorOne, buttonColorTwo,
-        buttonColorThree, buttonColorFour, buttonColorFiveNoGroups,
+        false, 'pale-blue', 'pale-blue',
+        'pale-blue', 'grey', 'grey-blue',
       ];
     };
     const initalButtonColors = this.GetButtonColors();
@@ -102,4 +111,4 @@ class FullUI extends React.Component<{ },
 UIRefresh();
 
 export { sideOneShips, sideTwoShips, UIRefresh, documentElement };
-export type { FullUI, SideShipInfo };
+export type { FullUI, SideShipInfo, IconlessSideShipInfo };

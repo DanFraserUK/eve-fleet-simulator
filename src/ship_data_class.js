@@ -1,5 +1,25 @@
 // @flow
-import type { Hp, Resonance, WeaponData, ShipSize, Subsystem, ProjectionTypeString } from './flow_types';
+import type {
+  Hp, Resonance, WeaponData, ShipSize,
+  Subsystem, ProjectionTypeString, RepairTypeString, AmmoData,
+} from './flow_types';
+import { AmmoTables, AmmoGroupMap, BaseChargeMap } from './staticAmmoData';
+
+const hexString = (buffer: ArrayBuffer): string => {
+  const byteArray = new Uint8Array(buffer);
+  const hexCodes = [...byteArray].map((value) => {
+    const hexCode = value.toString(16);
+    const paddedHexCode = hexCode.padStart(2, '0');
+    return paddedHexCode;
+  });
+  return hexCodes.join('');
+};
+
+const digestMessage = (message: string) => {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(message);
+  return (window.crypto.subtle.digest('SHA-256', data): Promise<ArrayBuffer>);
+};
 
 function isDamageDealerShip(ship) {
   const transportGroupIDs = [28, 380, 513, 902, 1202];
@@ -33,7 +53,71 @@ function isDamageDealerShip(ship) {
   return true;
 }
 
+function GetWepCargoAmmoNames(shipStats) {
+  // This can be replaced with a filter if flow ever plays nice with filters.
+  const modsWithCharges: [number, number][] = shipStats.modTypeIDs.reduce(
+    (arr: [number, number][], m: number | [number, number]) =>
+      (Array.isArray(m) ? [...arr, m] : arr),
+    [],
+  );
+  const modsNamesWithCharges = shipStats.moduleNames.filter(m => m.includes(': '));
+  const weaponsWithCharges: [[number, number], string][] = [];
+  for (let v = 0; v < modsWithCharges.length; v += 1) {
+    const chargeID = modsWithCharges[v][1];
+    if (BaseChargeMap[chargeID.toString()]) {
+      weaponsWithCharges.push([modsWithCharges[v], modsNamesWithCharges[v]]);
+    }
+  }
+  const ammoSwapData: string[] = [];
+
+  for (const wep of shipStats.weapons) {
+    const ammoTable = [];
+    let initalAmmoID: number | null = null;
+    const isSpecialWeapon = wep.damageReductionFactor === 0 && wep.type === 'Missile';
+    if (['Missile', 'Turret'].includes(wep.type) && !isSpecialWeapon) {
+      const pairData: [[number, number], string] | [null, null] =
+        (weaponsWithCharges.find((pair: [[number, number], string]) => {
+          const [, n: string] = pair;
+          const ns: string[] = n.split(': ');
+          return ns.every(s => wep.name.includes(s));
+        }) || [null, null]);
+      const [idPair, name] = pairData;
+      if (idPair && name) {
+        const baseChargePair: [number, string, string] =
+          BaseChargeMap[idPair[1].toString()];
+        [initalAmmoID] = baseChargePair;
+        const groupMap = AmmoGroupMap;
+        const groupData = groupMap.find(v => v[0] === idPair[0]);
+        if (groupData) {
+          const chSize = groupData[1];
+          const groups = groupData[2];
+          const matchingTables = AmmoTables.filter(v =>
+            (groups.includes(v.ammoGroupID) && v.chargeSize === chSize));
+          const fullTable: AmmoData[] = [];
+          const baseCargoIDs: number[] = shipStats.cargoItemIDs.reduce((arr, id) => {
+            const cd: ?[number, string, string] = BaseChargeMap[id.toString()];
+            if (cd) {
+              arr.push(cd[0]);
+            }
+            return arr;
+          }, []);
+          for (const t of matchingTables) {
+            fullTable.push(...t.ammoData.filter(a =>
+              (a[1] === initalAmmoID || baseCargoIDs.includes(a[1]))));
+          }
+          ammoTable.push(...(fullTable.map(a => a[0])));
+        }
+      }
+      ammoSwapData.push(`${(name || '').split(':')[0]}:`);
+      ammoSwapData.push(...ammoTable);
+    }
+  }
+  return ammoSwapData;
+}
+
 class ShipData {
+  static LastestEfsExportVersion: number = 0.04;
+
   static getMaxShieldEHP(shipData: ShipData): number {
     return shipData.maxShieldEHP;
   }
@@ -138,14 +222,16 @@ class ShipData {
   turretSlots: number;
   moduleNames: string[];
   projections: { type: ProjectionTypeString, [string]: number }[];
+  repairs: { type: RepairTypeString, [string]: number }[];
   projectedModules: { string: number | string }[];
-  rigSize: number;
+  rigSize: 0 | 1 | 2 | 3 | 4;
   effectiveDroneBandwidth: number;
   typeID: number;
   maxTargetRange: number;
   maxSpeed: number;
   name: string;
   id: number;
+  dataID: string;
   shipType: string | void;
   shipGroup: string;
   ehp: Hp;
@@ -177,53 +263,102 @@ class ShipData {
   mode: '' | 'Defense Mode' | 'Sharpshooter Mode' | 'Propulsion Mode';
   isFit: boolean = false;
   isSupportShip: boolean = false;
+  modTypeIDs: (number | [number, number])[];
+  cargoItemIDs: number[];
+  capacitorCapacity: number;
+  rechargeRate: number;
   efsExportVersion: number;
   pyfaVersion: string;
 
+  /**
+  * Adds (1), (2) ect to the end of ship names when they share the same name and type.
+  * This method scales poorly for ship counts well over 1000.
+  * It also gets slow when 100+ ships have the same name and type.
+  * A dict based method runs in ~5ms rather than ~8ms but it's much messier.
+  */
+  static fixDupeNames(ships: ShipData[]): void {
+    const names: string[] = [];
+    for (const s of ships) {
+      const b: string = s.name + s.typeID.toString();
+      let n = b;
+      let c = 0;
+      while (names.includes(n)) {
+        c += 1;
+        n = `${b} (${c})`;
+      }
+      if (c > 0) {
+        s.name = `${s.name} (${c})`;
+      }
+      names.push(n);
+    }
+  }
+
   static processing(shipStats: ShipData): void {
-    shipStats.id = Math.random();
-    const fullNameBreak = shipStats.name.indexOf(':');
-    if (fullNameBreak > -1) {
-      const baseName = shipStats.name;
-      shipStats.name = baseName.slice(fullNameBreak + 2);
-      shipStats.shipType = baseName.slice(0, fullNameBreak);
-      shipStats.isFit = true;
-      // isSupportShip is fairly conservative in it's labeling.
-      // This could be changed or allowed an explicit toggle in the future.
-      const dps = shipStats.weapons.reduce((t, v) => t + v.dps, 0);
-      if (!isDamageDealerShip(shipStats) && shipStats.projections.length > 0) {
-        const ehp = shipStats.ehp.shield + shipStats.ehp.armor + shipStats.ehp.hull;
-        if (dps < 200 || dps < ehp / 1200) {
-          shipStats.isSupportShip = true;
+    // If it has isFit and shipType then it's already been processed.
+    if (!(shipStats.shipType && shipStats.isFit)) {
+      const fullNameBreak = shipStats.name.indexOf(':');
+      if (fullNameBreak > -1) {
+        const baseName = shipStats.name;
+        shipStats.name = baseName.slice(fullNameBreak + 2);
+        shipStats.shipType = baseName.slice(0, fullNameBreak);
+        shipStats.isFit = true;
+        // isSupportShip is fairly conservative in it's labeling.
+        // This could be changed or allowed an explicit toggle in the future.
+        const dps = shipStats.weapons.reduce((t, v) => t + v.dps, 0);
+        if (!isDamageDealerShip(shipStats) && shipStats.projections.length > 0) {
+          const ehp = shipStats.ehp.shield + shipStats.ehp.armor + shipStats.ehp.hull;
+          if (dps < 200 || dps < ehp / 1200) {
+            shipStats.isSupportShip = true;
+          }
         }
-      }
-    } else {
-      shipStats.shipType = undefined;
-      shipStats.isFit = false;
-      // Handle subsystem processing for t3c.
-      if (shipStats.groupID === 963) {
-        const subsystems = {};
-        const subTypes = ['Defensive', 'Offensive', 'Propulsion', 'Core'];
-        for (const sub of subTypes) {
-          const subName = shipStats.moduleNames.find(n => n.includes(sub)) || '';
-          const specificSubName = subName.substring(subName.indexOf(sub) + 2 + sub.length);
-          subsystems[sub] = specificSubName;
+      } else {
+        shipStats.shipType = undefined;
+        shipStats.isFit = false;
+        // Handle subsystem processing for t3c.
+        if (shipStats.groupID === 963) {
+          const subsystems = {};
+          const subTypes = ['Defensive', 'Offensive', 'Propulsion', 'Core'];
+          for (const sub of subTypes) {
+            const subName = shipStats.moduleNames.find(n => n.includes(sub)) || '';
+            const specificSubName = subName.substring(subName.indexOf(sub) + 2 + sub.length);
+            subsystems[sub] = specificSubName;
+          }
+          shipStats.subsystems = subsystems;
         }
-        shipStats.subsystems = subsystems;
-      }
-      // Handle mode processing for t3d.
-      if (shipStats.groupID === 1305) {
-        const modes = ['Defense Mode', 'Sharpshooter Mode', 'Propulsion Mode'];
-        for (const mode of modes) {
-          const modeInd = shipStats.name.indexOf(mode);
-          const modeStr = shipStats.name.substring(modeInd);
-          if (modeStr === mode) {
-            shipStats.mode = mode;
-            shipStats.name = shipStats.name.substring(0, modeInd - 1);
+        // Handle mode processing for t3d.
+        if (shipStats.groupID === 1305) {
+          const modes = ['Defense Mode', 'Sharpshooter Mode', 'Propulsion Mode'];
+          for (const mode of modes) {
+            const modeInd = shipStats.name.indexOf(mode);
+            const modeStr = shipStats.name.substring(modeInd);
+            if (modeStr === mode) {
+              shipStats.mode = mode;
+              shipStats.name = shipStats.name.substring(0, modeInd - 1);
+            }
           }
         }
       }
     }
+    if (shipStats.efsExportVersion !== ShipData.LastestEfsExportVersion) {
+      shipStats.cargoItemIDs = shipStats.cargoItemIDs || [];
+      shipStats.repairs = shipStats.repairs || [];
+      shipStats.capacitorCapacity = shipStats.capacitorCapacity || 1000000;
+      shipStats.rechargeRate = shipStats.rechargeRate || 100000;
+    }
+    if (shipStats.cargoItemIDs.length > 0) {
+      shipStats.moduleNames.push('');
+      shipStats.moduleNames.push('Ammo Types in Cargo:');
+      const cargoAmmo = GetWepCargoAmmoNames(shipStats);
+      shipStats.moduleNames.push(...cargoAmmo);
+    }
+    shipStats.id = 0;
+    shipStats.dataID = '';
+    const text = JSON.stringify(shipStats);
+    shipStats.id = Math.random();
+    digestMessage(text).then((digestValue: ArrayBuffer) => {
+      const idStr: string = hexString(digestValue);
+      shipStats.dataID = idStr;
+    });
   }
 }
 export default ShipData;

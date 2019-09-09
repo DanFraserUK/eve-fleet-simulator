@@ -1,6 +1,6 @@
 {
   "name": "eve_sim",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "simple sim to calculate fleet battle outcomes",
   "main": "lib/index.js",
   "scripts": {
@@ -13,7 +13,8 @@
     "excludeGlob": [
       "./src/*/**.png",
       "./src/*JSON*",
-      "./src/css/sim.worker.js"
+      "./src/css/sim.worker.js",
+      "./src/staticAmmoData.js"
     ],
     "includeGlob": [
       "./src/**/**.js*"
@@ -45,13 +46,16 @@
     "eslint-plugin-import": "^2.9.0",
     "eslint-plugin-jsx-a11y": "^6.0.3",
     "eslint-plugin-react": "^7.7.0",
+    "eslint-plugin-react-hooks": "^1.5.0",
     "file-loader": "^1.1.9",
-    "flow-bin": "^0.61.0",
+    "flow-bin": "^0.95.1",
     "flow-coverage-report": "^0.4.1",
-    "less": "^2.7.3",
+    "less": "^3.9.0",
     "less-loader": "^4.1.0",
     "mini-css-extract-plugin": "^0.4.2",
     "optimize-css-assets-webpack-plugin": "^5.0.1",
+    "postcss-custom-properties": "^8.0.9",
+    "postcss-loader": "^3.0.0",
     "string-replace-loader": "^2.1.1",
     "style-loader": "^0.20.2",
     "uglifyjs-webpack-plugin": "^2.1.1",
@@ -62,9 +66,10 @@
     "yarn": "^1.4.0"
   },
   "dependencies": {
-    "react": "^16.2.0",
+    "@babel/polyfill": "^7.2.5",
+    "react": "^16.8.4",
     "react-beautiful-dnd": "^7.1.3",
-    "react-dom": "^16.2.0",
+    "react-dom": "^16.8.4",
     "react-treebeard": "^2.1.0",
     "react-vis": "^1.9.1",
     "semantic-ui-css": "^2.2.14",
